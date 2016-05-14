@@ -1,55 +1,59 @@
-if (!require("data.table")) {
-  install.packages("data.table")
-}
+## Download and unzip file, then set as working directory.
+setwd("C:/Users/Erika/Desktop/getdata-projectfiles-UCI HAR Dataset")
 
-if (!require("reshape2")) {
+## Read Data
+subject_test <- read.table("UCI HAR Dataset/test/subject_test.txt")
+subject_train <- read.table("UCI HAR Dataset/train/subject_train.txt")
+X_test <- read.table("UCI HAR Dataset/test/X_test.txt")
+X_train <- read.table("UCI HAR Dataset/train/X_train.txt")
+y_test <- read.table("UCI HAR Dataset/test/y_test.txt")
+y_train <- read.table("UCI HAR Dataset/train/y_train.txt")
+
+activity_labels <- read.table("UCI HAR Dataset/activity_labels.txt")
+features <- read.table("UCI HAR Dataset/features.txt")  
+
+## Analysis
+# 1. Merges the training and the test sets to create one data set.
+dataSet <- rbind(X_train,X_test)
+
+# 2. Extracts only the measurements on the mean and standard deviation for each measurement. 
+# Create a vector of only mean and std, use the vector to subset.
+MeanStdOnly <- grep("mean()|std()", features[, 2]) 
+dataSet <- dataSet[,MeanStdOnly]
+
+
+# 4. Appropriately labels the data set with descriptive activity names.
+# Create vector of "Clean" feature names by getting rid of "()" apply to the dataSet to rename labels.
+CleanFeatureNames <- sapply(features[, 2], function(x) {gsub("[()]", "",x)})
+names(dataSet) <- CleanFeatureNames[MeanStdOnly]
+
+# combine test and train of subject data and activity data, give descriptive lables
+subject <- rbind(subject_train, subject_test)
+names(subject) <- 'subject'
+activity <- rbind(y_train, y_test)
+names(activity) <- 'activity'
+
+# combine subject, activity, and mean and std only data set to create final data set.
+dataSet <- cbind(subject,activity, dataSet)
+
+
+# 3. Uses descriptive activity names to name the activities in the data set
+# group the activity column of dataSet, re-name lable of levels with activity_levels, and apply it to dataSet.
+act_group <- factor(dataSet$activity)
+levels(act_group) <- activity_labels[,2]
+dataSet$activity <- act_group
+
+
+# 5. Creates a second, independent tidy data set with the average of each variable for each activity and each subject. 
+
+# check if reshape2 package is installed
+if (!"reshape2" %in% installed.packages()) {
   install.packages("reshape2")
 }
+library("reshape2")
 
-require("data.table")
-require("reshape2")
-
-activity_labels <- read.table("./UCI HAR Dataset/activity_labels.txt")[,2]
-
-features <- read.table("./UCI HAR Dataset/features.txt")[,2]
-
-extract_features <- grepl("mean|std", features)
-
-X_test <- read.table("./UCI HAR Dataset/test/X_test.txt")
-y_test <- read.table("./UCI HAR Dataset/test/y_test.txt")
-subject_test <- read.table("./UCI HAR Dataset/test/subject_test.txt")
-
-names(X_test) = features
-
-X_test = X_test[,extract_features]
-
-y_test[,2] = activity_labels[y_test[,1]]
-names(y_test) = c("Activity_ID", "Activity_Label")
-names(subject_test) = "subject"
-
-test_data <- cbind(as.data.table(subject_test), y_test, X_test)
-
-X_train <- read.table("./UCI HAR Dataset/train/X_train.txt")
-y_train <- read.table("./UCI HAR Dataset/train/y_train.txt")
-
-subject_train <- read.table("./UCI HAR Dataset/train/subject_train.txt")
-
-names(X_train) = features
-
-X_train = X_train[,extract_features]
-
-y_train[,2] = activity_labels[y_train[,1]]
-names(y_train) = c("Activity_ID", "Activity_Label")
-names(subject_train) = "subject"
-
-train_data <- cbind(as.data.table(subject_train), y_train, X_train)
-
-data = rbind(test_data, train_data)
-
-id_labels   = c("subject", "Activity_ID", "Activity_Label")
-data_labels = setdiff(colnames(data), id_labels)
-melt_data      = melt(data, id = id_labels, measure.vars = data_labels)
-
-tidy_data   = dcast(melt_data, subject + Activity_Label ~ variable, mean)
-
-write.table(tidy_data, file = "./tidy_data.txt")
+# "melt" data to tall skinny data and cast means. Finally write the tidy data to the working directory as "tidy_data.txt"
+baseData <- melt(dataSet,(id.vars=c("subject","activity")))
+secondDataSet <- dcast(baseData, subject + activity ~ variable, mean)
+names(secondDataSet)[-c(1:2)] <- paste("[mean of]" , names(secondDataSet)[-c(1:2)] )
+write.table(secondDataSet, "tidy_data.txt", sep = ",")
